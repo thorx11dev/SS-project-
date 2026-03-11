@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -85,6 +86,27 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products (id)
   );
+
+  CREATE TABLE IF NOT EXISTS admin_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_security_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    answer_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Add new columns to existing tables if they don't exist
@@ -136,6 +158,29 @@ if (categoryCount.count === 0) {
   insertProduct.run("Elite Training Shorts", "elite-training-shorts", "Lightweight and flexible shorts designed for maximum range of motion on the court.", 35.00, 4, "Student Sports", "https://images.unsplash.com/photo-1591117207239-788cd8591fb7?auto=format&fit=crop&w=800&q=80", 40, 0, null, null);
 }
 
+// ─── Admin Auth Helpers ────────────────────────────────────────────────────
+const ADMIN_SALT = "ks_admin_salt_2026_secure";
+const hashValue = (val: string): string =>
+  crypto.createHash("sha256").update(val.toLowerCase().trim() + ADMIN_SALT).digest("hex");
+
+// Seed default admin key if none exist
+const adminKeyCount = db.prepare("SELECT COUNT(*) as count FROM admin_keys").get() as { count: number };
+if (adminKeyCount.count === 0) {
+  db.prepare("INSERT INTO admin_keys (label, password_hash) VALUES (?, ?)").run(
+    "Default Password",
+    hashValue("admin123")
+  );
+}
+
+// Seed default security question if none exist
+const adminQCount = db.prepare("SELECT COUNT(*) as count FROM admin_security_questions").get() as { count: number };
+if (adminQCount.count === 0) {
+  db.prepare("INSERT INTO admin_security_questions (question, answer_hash) VALUES (?, ?)").run(
+    "What is the full name of this store?",
+    hashValue("kashif sports")
+  );
+}
+
 const settingsCount = db.prepare("SELECT COUNT(*) as count FROM homepage_settings").get() as { count: number };
 if (settingsCount.count === 0) {
   const insertSetting = db.prepare("INSERT INTO homepage_settings (key, value) VALUES (?, ?)");
@@ -169,10 +214,141 @@ async function startServer() {
   // Serve static files from public
   app.use("/uploads", express.static(uploadsDir));
 
+  // ─── Admin Auth Middleware ────────────────────────────────────────────────
+  const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const token = req.headers["x-admin-token"] as string | undefined;
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    const session = db.prepare(
+      "SELECT id FROM admin_sessions WHERE token = ? AND expires_at > datetime('now')"
+    ).get(token);
+    if (!session) return res.status(401).json({ error: "Session expired or invalid. Please log in again." });
+    next();
+  };
+
+  // ─── Auth Routes (Public) ─────────────────────────────────────────────────
+
+  app.post("/api/admin/login", (req, res) => {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: "Password required" });
+    const hash = hashValue(password);
+    const key = db.prepare("SELECT id FROM admin_keys WHERE password_hash = ?").get(hash);
+    if (!key) return res.status(401).json({ error: "Incorrect password" });
+    const token = crypto.randomBytes(32).toString("hex");
+    db.prepare("INSERT INTO admin_sessions (token, expires_at) VALUES (?, datetime('now', '+8 hours'))").run(token);
+    db.prepare("DELETE FROM admin_sessions WHERE expires_at <= datetime('now')").run();
+    res.json({ token, success: true });
+  });
+
+  app.get("/api/admin/security-questions-public", (req, res) => {
+    const questions = db.prepare("SELECT id, question FROM admin_security_questions ORDER BY created_at ASC").all();
+    res.json(questions);
+  });
+
+  app.post("/api/admin/verify-answer", (req, res) => {
+    const { question_id, answer } = req.body;
+    if (!question_id || !answer) return res.status(400).json({ error: "Question and answer required" });
+    const hash = hashValue(answer);
+    const q = db.prepare("SELECT id FROM admin_security_questions WHERE id = ? AND answer_hash = ?").get(question_id, hash);
+    if (!q) return res.status(401).json({ error: "Incorrect answer" });
+    const token = crypto.randomBytes(32).toString("hex");
+    db.prepare("INSERT INTO admin_sessions (token, expires_at) VALUES (?, datetime('now', '+8 hours'))").run(token);
+    db.prepare("DELETE FROM admin_sessions WHERE expires_at <= datetime('now')").run();
+    res.json({ token, success: true });
+  });
+
+  app.get("/api/admin/validate-token", (req, res) => {
+    const token = req.headers["x-admin-token"] as string | undefined;
+    if (!token) return res.json({ valid: false });
+    const session = db.prepare(
+      "SELECT id FROM admin_sessions WHERE token = ? AND expires_at > datetime('now')"
+    ).get(token);
+    res.json({ valid: !!session });
+  });
+
+  app.post("/api/admin/logout", (req, res) => {
+    const token = req.headers["x-admin-token"] as string | undefined;
+    if (token) db.prepare("DELETE FROM admin_sessions WHERE token = ?").run(token);
+    res.json({ success: true });
+  });
+
+  // ─── Keys Management (Protected) ─────────────────────────────────────────
+
+  app.get("/api/admin/keys", requireAdmin, (req, res) => {
+    const keys = db.prepare("SELECT id, label, created_at FROM admin_keys ORDER BY created_at ASC").all();
+    res.json(keys);
+  });
+
+  app.post("/api/admin/keys", requireAdmin, (req, res) => {
+    const { label, password } = req.body;
+    if (!label || !password) return res.status(400).json({ error: "Label and password are required" });
+    try {
+      const info = db.prepare("INSERT INTO admin_keys (label, password_hash) VALUES (?, ?)").run(label, hashValue(password));
+      res.json({ id: info.lastInsertRowid, success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.put("/api/admin/keys/:id", requireAdmin, (req, res) => {
+    const { label, password } = req.body;
+    if (!label) return res.status(400).json({ error: "Label is required" });
+    try {
+      if (password && password.trim()) {
+        db.prepare("UPDATE admin_keys SET label = ?, password_hash = ? WHERE id = ?").run(label, hashValue(password), req.params.id);
+      } else {
+        db.prepare("UPDATE admin_keys SET label = ? WHERE id = ?").run(label, req.params.id);
+      }
+      res.json({ success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.delete("/api/admin/keys/:id", requireAdmin, (req, res) => {
+    const count = (db.prepare("SELECT COUNT(*) as n FROM admin_keys").get() as any).n;
+    if (count <= 1) return res.status(400).json({ error: "Cannot delete the last key. At least one password must always exist." });
+    try {
+      db.prepare("DELETE FROM admin_keys WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // ─── Security Questions Management (Protected) ────────────────────────────
+
+  app.get("/api/admin/security-questions", requireAdmin, (req, res) => {
+    const questions = db.prepare("SELECT id, question, created_at FROM admin_security_questions ORDER BY created_at ASC").all();
+    res.json(questions);
+  });
+
+  app.post("/api/admin/security-questions", requireAdmin, (req, res) => {
+    const { question, answer } = req.body;
+    if (!question || !answer) return res.status(400).json({ error: "Question and answer are required" });
+    try {
+      const info = db.prepare("INSERT INTO admin_security_questions (question, answer_hash) VALUES (?, ?)").run(question, hashValue(answer));
+      res.json({ id: info.lastInsertRowid, success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.put("/api/admin/security-questions/:id", requireAdmin, (req, res) => {
+    const { question, answer } = req.body;
+    if (!question) return res.status(400).json({ error: "Question is required" });
+    try {
+      if (answer && answer.trim()) {
+        db.prepare("UPDATE admin_security_questions SET question = ?, answer_hash = ? WHERE id = ?").run(question, hashValue(answer), req.params.id);
+      } else {
+        db.prepare("UPDATE admin_security_questions SET question = ? WHERE id = ?").run(question, req.params.id);
+      }
+      res.json({ success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.delete("/api/admin/security-questions/:id", requireAdmin, (req, res) => {
+    try {
+      db.prepare("DELETE FROM admin_security_questions WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
   // API Routes
   
   // Upload Endpoint
-  app.post("/api/admin/upload", upload.single("image"), (req, res) => {
+  app.post("/api/admin/upload", requireAdmin, upload.single("image"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
@@ -187,7 +363,7 @@ async function startServer() {
     res.json(settingsMap);
   });
 
-  app.post("/api/admin/settings", (req, res) => {
+  app.post("/api/admin/settings", requireAdmin, (req, res) => {
     const settings = req.body;
     if (!settings || typeof settings !== 'object') {
       return res.status(400).json({ error: "Invalid settings data" });
@@ -219,7 +395,7 @@ async function startServer() {
     res.json(strings);
   });
 
-  app.post("/api/admin/strings", (req, res) => {
+  app.post("/api/admin/strings", requireAdmin, (req, res) => {
     const { name, price } = req.body;
     try {
       const info = db.prepare("INSERT INTO strings (name, price) VALUES (?, ?)").run(name, price);
@@ -229,7 +405,7 @@ async function startServer() {
     }
   });
 
-  app.put("/api/admin/strings/:id", (req, res) => {
+  app.put("/api/admin/strings/:id", requireAdmin, (req, res) => {
     const { name, price } = req.body;
     try {
       db.prepare("UPDATE strings SET name = ?, price = ? WHERE id = ?").run(name, price, req.params.id);
@@ -239,7 +415,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/admin/strings/:id", (req, res) => {
+  app.delete("/api/admin/strings/:id", requireAdmin, (req, res) => {
     try {
       db.prepare("DELETE FROM strings WHERE id = ?").run(req.params.id);
       res.json({ success: true });
@@ -254,7 +430,7 @@ async function startServer() {
     res.json(categories);
   });
 
-  app.post("/api/admin/categories", (req, res) => {
+  app.post("/api/admin/categories", requireAdmin, (req, res) => {
     const { name, slug, brands, image_url } = req.body;
     try {
       const info = db.prepare("INSERT INTO categories (name, slug, brands, image_url) VALUES (?, ?, ?, ?)").run(name, slug, brands || null, image_url || null);
@@ -264,7 +440,7 @@ async function startServer() {
     }
   });
 
-  app.put("/api/admin/categories/:id", (req, res) => {
+  app.put("/api/admin/categories/:id", requireAdmin, (req, res) => {
     const { name, slug, brands, image_url } = req.body;
     try {
       db.prepare("UPDATE categories SET name = ?, slug = ?, brands = ?, image_url = ? WHERE id = ?").run(name, slug, brands || null, image_url || null, req.params.id);
@@ -274,7 +450,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/admin/categories/:id", (req, res) => {
+  app.delete("/api/admin/categories/:id", requireAdmin, (req, res) => {
     try {
       const transaction = db.transaction(() => {
         // Find all products in this category
@@ -411,7 +587,7 @@ async function startServer() {
   });
 
   // Admin: Product Management
-  app.post("/api/admin/products", (req, res) => {
+  app.post("/api/admin/products", requireAdmin, (req, res) => {
     const { name, slug, description, price, category_id, brand, image_url, images, custom_strings, stock, is_featured, weight, grip_size, lbs, specifications } = req.body;
     try {
       const info = db.prepare(`
@@ -425,7 +601,7 @@ async function startServer() {
     }
   });
 
-  app.put("/api/admin/products/:id", (req, res) => {
+  app.put("/api/admin/products/:id", requireAdmin, (req, res) => {
     const { name, slug, description, price, category_id, brand, image_url, images, custom_strings, stock, is_featured, weight, grip_size, lbs, specifications } = req.body;
     try {
       db.prepare(`
@@ -440,7 +616,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/admin/products/:id", (req, res) => {
+  app.delete("/api/admin/products/:id", requireAdmin, (req, res) => {
     try {
       const transaction = db.transaction(() => {
         db.prepare("DELETE FROM order_items WHERE product_id = ?").run(req.params.id);
@@ -506,7 +682,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/orders", (req, res) => {
+  app.get("/api/admin/orders", requireAdmin, (req, res) => {
     const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
     
     // Fetch items for each order
@@ -523,7 +699,7 @@ async function startServer() {
     res.json(ordersWithItems);
   });
 
-  app.put("/api/admin/orders/:id/status", (req, res) => {
+  app.put("/api/admin/orders/:id/status", requireAdmin, (req, res) => {
     const { status } = req.body;
     try {
       const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(req.params.id) as any;
@@ -549,7 +725,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/stats", (req, res) => {
+  app.get("/api/admin/stats", requireAdmin, (req, res) => {
     const totalSales = db.prepare("SELECT SUM(total_amount) as total FROM orders WHERE status = 'completed'").get() as any;
     const orderCount = db.prepare("SELECT COUNT(*) as count FROM orders").get() as any;
     const productCount = db.prepare("SELECT COUNT(*) as count FROM products").get() as any;

@@ -35,6 +35,14 @@ export const Footer = () => {
         {/* Bottom Bar */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-neutral-500 border-t border-white/10 pt-8">
           <p>© {new Date().getFullYear()} KS KASHIF SPORTS. ALL RIGHTS RESERVED.</p>
+          {/* Admin access — intentionally low-visibility */}
+          <Link
+            to="/admin/login"
+            className="text-neutral-800 hover:text-neutral-600 transition-colors text-[9px] tracking-normal font-mono normal-case select-none"
+            tabIndex={-1}
+          >
+            ·
+          </Link>
         </div>
       </div>
     </footer>

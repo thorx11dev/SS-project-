@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Menu, X, Search } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Category } from '../types';
 
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -68,9 +67,6 @@ export const Navbar = () => {
               <Link to="/catalog" onClick={() => setIsMenuOpen(false)}>Store</Link>
               <Link to="/order-history" onClick={() => setIsMenuOpen(false)}>History</Link>
               <Link to="/contact" onClick={() => setIsMenuOpen(false)}>Contact</Link>
-              
-              <hr className="border-[var(--color-ink)]/20" />
-              <Link to="/admin" className="text-neutral-500" onClick={() => setIsMenuOpen(false)}>Admin Dashboard</Link>
             </div>
           </motion.div>
         )}

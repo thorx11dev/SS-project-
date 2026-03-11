@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Home, ArrowLeft, LogOut, Menu, X } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Package, ShoppingCart, Home, ArrowLeft, LogOut, Menu, X, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 export const AdminLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAdminAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const menuItems = [
@@ -12,7 +15,13 @@ export const AdminLayout = () => {
     { icon: Package, label: 'Products', path: '/admin/products' },
     { icon: ShoppingCart, label: 'Orders', path: '/admin/orders' },
     { icon: Home, label: 'Settings', path: '/admin/settings' },
+    { icon: Key, label: 'Keys', path: '/admin/keys' },
   ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/admin/login');
+  };
 
   const SidebarContent = () => (
     <>
@@ -47,7 +56,10 @@ export const AdminLayout = () => {
         <Link to="/" className="flex items-center gap-3 text-neutral-400 hover:text-white transition-colors text-sm uppercase tracking-widest">
           <ArrowLeft size={18} /> Back to Store
         </Link>
-        <button className="flex items-center gap-3 text-neutral-400 hover:text-red-500 transition-colors text-sm uppercase tracking-widest">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 text-neutral-400 hover:text-red-500 transition-colors text-sm uppercase tracking-widest"
+        >
           <LogOut size={18} /> Logout
         </button>
       </div>
