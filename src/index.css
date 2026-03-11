@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Anton", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-brand-primary: #000000;
+  --color-brand-accent: #D4FF00;
+  --color-canvas: #F3F2ED;
+  --color-ink: #000000;
+  --color-card: #EBEBEB;
+}
+
+@layer base {
+  body {
+    @apply font-sans bg-[var(--color-canvas)] text-[var(--color-ink)] antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight uppercase;
+  }
+}
+
+.glass-panel {
+  @apply bg-[var(--color-canvas)] border-b border-[var(--color-ink)];
+}
+
+.btn-primary {
+  @apply bg-[var(--color-ink)] text-[var(--color-canvas)] px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all hover:bg-[var(--color-brand-accent)] hover:text-[var(--color-ink)] active:scale-95 disabled:opacity-50 text-xs;
+}
+
+.btn-outline {
+  @apply border border-[var(--color-ink)] px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all hover:bg-[var(--color-ink)] hover:text-[var(--color-canvas)] active:scale-95 disabled:opacity-50 text-xs;
+}
+
+.input-field {
+  @apply w-full px-4 py-3 border border-[var(--color-ink)] bg-transparent focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-accent)] transition-all font-mono text-sm;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@layer utilities {
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  
+  .animate-marquee {
+    animation: marquee 20s linear infinite;
+  }
+}
+
