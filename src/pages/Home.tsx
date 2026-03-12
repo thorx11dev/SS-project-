@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowRight, ArrowUpRight, Play } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Category } from '../types';
 
 export const Home = () => {
@@ -68,9 +68,6 @@ export const Home = () => {
                   <ArrowRight size={16} />
                 </div>
               </Link>
-              <button className="w-12 h-12 rounded-full border border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors hover:scale-110 active:scale-95">
-                <Play size={16} fill="currentColor" />
-              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Menu, X, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -38,9 +38,6 @@ export const Navbar = () => {
 
           {/* Actions */}
           <div className="flex items-center gap-4 md:flex-1 justify-end font-mono text-xs uppercase tracking-widest font-bold">
-            <Link to="/catalog" className="hidden md:flex items-center gap-2 hover:text-[var(--color-brand-accent)] transition-colors">
-              Store <Search size={16} />
-            </Link>
             <Link to="/cart" className="flex items-center gap-2 hover:text-[var(--color-brand-accent)] transition-colors relative">
               Cart <ShoppingCart size={16} />
               {totalItems > 0 && (

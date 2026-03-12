@@ -92,73 +92,93 @@ export const Catalog = () => {
     <div className="pt-32 pb-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-display font-bold uppercase italic">
-              {currentCategory ? currentCategory : 'All Equipment'}
-            </h1>
-            <p className="text-neutral-500 mt-2">{totalProducts} Products found</p>
+        <div className="mb-10">
+          {/* Title row */}
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-display font-bold uppercase italic">
+                {currentCategory ? currentCategory : 'All Equipment'}
+              </h1>
+              <p className="text-neutral-500 text-sm mt-1 font-mono">{totalProducts} Products found</p>
+            </div>
+
+            {/* Mobile filter button */}
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className="lg:hidden flex items-center gap-2 px-4 py-2.5 border border-black/15 rounded-xl hover:bg-black hover:text-white transition-all text-sm font-bold uppercase tracking-widest"
+            >
+              <Filter size={16} /> Filters
+            </button>
           </div>
-          
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-            <div className="relative w-full sm:w-64 shrink-0">
-              <input 
-                type="text" 
-                placeholder="Search products..." 
-                className="input-field py-2 w-full"
+
+          {/* Desktop controls row */}
+          <div className="hidden md:flex items-center gap-3 border-t border-black/8 pt-5">
+            {/* Search */}
+            <div className="relative flex-1 max-w-xs">
+              <input
+                type="text"
+                placeholder="Search products..."
+                className="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-black/30 transition-colors placeholder:text-neutral-400"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
-            
-            <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto">
-              <button 
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className="flex items-center justify-center gap-2 px-4 py-2 border border-black/10 rounded-xl hover:bg-black hover:text-white transition-all font-medium lg:hidden flex-1 sm:flex-none"
+
+            <div className="flex-1" />
+
+            {/* Sort Dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={currentSort}
+                onChange={handleSortChange}
+                className="appearance-none bg-white border border-black/10 rounded-xl px-4 py-2.5 pr-9 text-sm font-mono focus:outline-none focus:border-black/30 transition-colors cursor-pointer"
               >
-                <Filter size={18} /> Filters
-              </button>
+                <option value="newest">Newest Arrivals</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            </div>
 
-              {/* Sort Dropdown */}
-              <div className="relative hidden sm:block shrink-0">
-                <select 
-                  value={currentSort}
-                  onChange={handleSortChange}
-                  className="appearance-none bg-white border border-black/10 rounded-xl px-4 py-2 pr-10 hover:border-black/30 transition-colors focus:outline-none focus:ring-2 focus:ring-black/5 cursor-pointer text-sm font-medium"
-                >
-                  <option value="newest">Newest Arrivals</option>
-                  <option value="price_asc">Price: Low to High</option>
-                  <option value="price_desc">Price: High to Low</option>
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
-              </div>
+            {/* Divider */}
+            <div className="w-px h-7 bg-black/10 shrink-0" />
 
-              {/* Grid Layout Options */}
-              <div className="flex items-center gap-1 sm:gap-2 bg-neutral-100 p-1 rounded-xl shrink-0">
-              <button 
+            {/* Grid Layout Toggles */}
+            <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-xl shrink-0">
+              <button
                 onClick={() => setGridLayout('grid-large')}
                 className={`p-2 rounded-lg transition-colors ${gridLayout === 'grid-large' ? 'bg-white shadow-sm text-black' : 'text-neutral-400 hover:text-black'}`}
                 title="Large Grid"
               >
-                <Grid2X2 size={18} />
+                <Grid2X2 size={17} />
               </button>
-              <button 
+              <button
                 onClick={() => setGridLayout('grid-small')}
                 className={`p-2 rounded-lg transition-colors ${gridLayout === 'grid-small' ? 'bg-white shadow-sm text-black' : 'text-neutral-400 hover:text-black'}`}
                 title="Small Grid"
               >
-                <Grid3X3 size={18} />
+                <Grid3X3 size={17} />
               </button>
-              <button 
+              <button
                 onClick={() => setGridLayout('list')}
                 className={`p-2 rounded-lg transition-colors ${gridLayout === 'list' ? 'bg-white shadow-sm text-black' : 'text-neutral-400 hover:text-black'}`}
                 title="List View"
               >
-                <List size={18} />
+                <List size={17} />
               </button>
             </div>
           </div>
-        </div>
+
+          {/* Mobile search */}
+          <div className="md:hidden mt-3">
+            <input
+              type="text"
+              placeholder="Search products..."
+              className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-black/30 transition-colors placeholder:text-neutral-400"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-12">
