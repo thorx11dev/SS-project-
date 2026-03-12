@@ -199,19 +199,15 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Configure Multer
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
+  // Configure Multer — use memory storage so uploaded images are converted to
+  // base64 data URLs and stored in the database. This means NO dependency on
+  // the local filesystem for images, so they survive server restarts.
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   });
-  const upload = multer({ storage });
 
-  // Serve static files from public
+  // Still serve any legacy uploads already on disk (backwards compat)
   app.use("/uploads", express.static(uploadsDir));
 
   // ─── Admin Auth Middleware ────────────────────────────────────────────────
@@ -347,13 +343,16 @@ async function startServer() {
 
   // API Routes
   
-  // Upload Endpoint
+  // Upload Endpoint — converts uploaded file to a base64 data URL so the
+  // image is stored entirely inside the database (no filesystem dependency).
   app.post("/api/admin/upload", requireAdmin, upload.single("image"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ url: imageUrl });
+    const mime = req.file.mimetype;
+    const b64 = req.file.buffer.toString("base64");
+    const dataUrl = `data:${mime};base64,${b64}`;
+    res.json({ url: dataUrl });
   });
 
   // Settings
